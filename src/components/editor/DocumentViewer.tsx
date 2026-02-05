@@ -33,13 +33,13 @@ const MemoizedPdfRenderer = memo(PdfRenderer);
 
 const getFieldLabel = (type: string) => {
     const labels: Record<string, string> = {
-        signature: 'Signature',
-        date: 'Date',
-        text: 'Text',
+        signature: 'Click to sign',
+        date: 'Select date',
+        text: 'Enter text',
         checkbox: 'Checkbox',
         radio: 'Radio',
-        image: 'Image',
-        hyperlink: 'Link',
+        image: 'Upload image',
+        hyperlink: 'Enter URL',
     };
     return labels[type] || type;
 };
@@ -56,6 +56,201 @@ const getFieldColor = (type: string) => {
     };
     return colors[type] || 'bg-gray-50 border-gray-400 text-gray-600';
 };
+
+// Field content renderer based on type
+function FieldContent({
+    field,
+    onUpdate,
+    isPreview
+}: {
+    field: Field;
+    onUpdate: (value: string) => void;
+    isPreview: boolean;
+}) {
+    const [isEditing, setIsEditing] = useState(false);
+    const [tempValue, setTempValue] = useState(field.value || '');
+
+    // Handle text field
+    if (field.type === 'text') {
+        if (isPreview && field.value) {
+            return <span className="text-sm px-2">{field.value}</span>;
+        }
+        if (isEditing || field.value) {
+            return (
+                <input
+                    type="text"
+                    value={tempValue}
+                    onChange={(e) => setTempValue(e.target.value)}
+                    onBlur={() => {
+                        onUpdate(tempValue);
+                        setIsEditing(false);
+                    }}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            onUpdate(tempValue);
+                            setIsEditing(false);
+                        }
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    className="w-full h-full bg-transparent text-sm px-2 outline-none border-none"
+                    placeholder="Enter text..."
+                    autoFocus={isEditing}
+                />
+            );
+        }
+        return (
+            <span
+                className="text-sm opacity-75 cursor-text"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setIsEditing(true);
+                }}
+            >
+                {getFieldLabel(field.type)}
+            </span>
+        );
+    }
+
+    // Handle date field
+    if (field.type === 'date') {
+        if (isPreview && field.value) {
+            return <span className="text-sm px-2">{field.value}</span>;
+        }
+        return (
+            <input
+                type="date"
+                value={field.value || new Date().toISOString().split('T')[0]}
+                onChange={(e) => {
+                    onUpdate(e.target.value);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                className="w-full h-full bg-transparent text-sm px-2 outline-none border-none cursor-pointer"
+            />
+        );
+    }
+
+    // Handle checkbox field
+    if (field.type === 'checkbox') {
+        return (
+            <div
+                className="flex items-center gap-2"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+            >
+                <input
+                    type="checkbox"
+                    checked={field.value === 'true'}
+                    onChange={(e) => {
+                        onUpdate(e.target.checked ? 'true' : '');
+                    }}
+                    className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                    disabled={isPreview}
+                />
+                <span className="text-sm">Checkbox</span>
+            </div>
+        );
+    }
+
+    // Handle radio field
+    if (field.type === 'radio') {
+        return (
+            <div
+                className="flex items-center gap-2"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+            >
+                <input
+                    type="radio"
+                    checked={field.value === 'true'}
+                    onChange={(e) => {
+                        onUpdate(e.target.checked ? 'true' : '');
+                    }}
+                    className="w-5 h-5 border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                    disabled={isPreview}
+                />
+                <span className="text-sm">Radio</span>
+            </div>
+        );
+    }
+
+    // Handle image field
+    if (field.type === 'image') {
+        if (field.value) {
+            return <img src={field.value} alt="Uploaded" className="max-w-full max-h-full object-contain" />;
+        }
+        return (
+            <label
+                className="flex flex-col items-center gap-1 cursor-pointer"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+            >
+                <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                                onUpdate(event.target?.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                        }
+                    }}
+                    disabled={isPreview}
+                />
+                <svg className="w-6 h-6 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span className="text-xs opacity-75">Upload Image</span>
+            </label>
+        );
+    }
+
+    // Handle hyperlink field
+    if (field.type === 'hyperlink') {
+        if (isPreview && field.value) {
+            return (
+                <a
+                    href={field.value}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm px-2 text-blue-600 underline"
+                >
+                    {field.value}
+                </a>
+            );
+        }
+        return (
+            <input
+                type="url"
+                value={field.value || ''}
+                onChange={(e) => onUpdate(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                className="w-full h-full bg-transparent text-sm px-2 outline-none border-none"
+                placeholder="https://example.com"
+            />
+        );
+    }
+
+    // Handle signature field (click to open modal - handled by parent)
+    if (field.type === 'signature') {
+        if (field.value) {
+            return <img src={field.value} alt="Signature" className="max-w-full max-h-full pointer-events-none" />;
+        }
+        return <span className="text-sm opacity-75 pointer-events-none">{getFieldLabel(field.type)}</span>;
+    }
+
+    // Default fallback
+    if (field.value) {
+        return <span className="text-sm px-2">{field.value}</span>;
+    }
+    return <span className="text-sm opacity-75">{getFieldLabel(field.type)}</span>;
+}
 
 export default function DocumentViewer({
     fields,
@@ -74,6 +269,11 @@ export default function DocumentViewer({
 
     const handleMouseDown = useCallback((e: React.MouseEvent, field: Field) => {
         if (isPreview) return;
+        // Don't start drag if clicking on an interactive element
+        if ((e.target as HTMLElement).tagName === 'INPUT' ||
+            (e.target as HTMLElement).tagName === 'LABEL') {
+            return;
+        }
         e.preventDefault();
         e.stopPropagation();
 
@@ -104,6 +304,10 @@ export default function DocumentViewer({
         onPageCountChange?.(numPages);
     }, [onPageCountChange]);
 
+    const handleFieldValueUpdate = useCallback((fieldId: string, value: string) => {
+        onFieldUpdate(fieldId, { value });
+    }, [onFieldUpdate]);
+
     return (
         <div className="flex justify-center">
             <div
@@ -131,7 +335,7 @@ export default function DocumentViewer({
                             'border-2 border-dashed rounded cursor-move select-none',
                             getFieldColor(field.type),
                             selectedFieldId === field.id && 'ring-2 ring-primary-500 ring-offset-2',
-                            isPreview && 'cursor-default',
+                            isPreview && 'cursor-default border-transparent',
                             dragging === field.id && 'opacity-80'
                         )}
                         style={{
@@ -144,18 +348,14 @@ export default function DocumentViewer({
                         onClick={() => onFieldClick(field)}
                         onMouseDown={(e) => handleMouseDown(e, field)}
                     >
-                        {field.value ? (
-                            field.type === 'signature' ? (
-                                <img src={field.value} alt="Signature" className="max-w-full max-h-full pointer-events-none" />
-                            ) : (
-                                <span className="text-sm px-2 pointer-events-none">{field.value}</span>
-                            )
-                        ) : (
-                            <span className="text-sm opacity-75 pointer-events-none">{getFieldLabel(field.type)}</span>
-                        )}
+                        <FieldContent
+                            field={field}
+                            onUpdate={(value) => handleFieldValueUpdate(field.id, value)}
+                            isPreview={isPreview}
+                        />
 
                         {/* Required indicator */}
-                        {field.required && !field.value && (
+                        {field.required && !field.value && !isPreview && (
                             <span className="absolute -top-1 -right-1 text-red-500 text-lg pointer-events-none">*</span>
                         )}
 

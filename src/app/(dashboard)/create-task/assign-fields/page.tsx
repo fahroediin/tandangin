@@ -25,12 +25,125 @@ export default function AssignFieldsPage() {
     const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
     const [selectedField, setSelectedField] = useState<Field | null>(null);
     const [showSignatureModal, setShowSignatureModal] = useState(false);
+    const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
 
     // PDF state
     const [pdfData, setPdfData] = useState<ArrayBuffer | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageCount, setPageCount] = useState(0);
     const [pdfLoading, setPdfLoading] = useState(false);
+
+    // Clipboard and History for undo/redo
+    const [clipboard, setClipboard] = useState<Field | null>(null);
+    const [history, setHistory] = useState<Field[][]>([[]]);
+    const [historyIndex, setHistoryIndex] = useState(0);
+
+    // Save to history when fields change
+    const saveToHistory = useCallback((newFields: Field[]) => {
+        setHistory(prev => {
+            const newHistory = prev.slice(0, historyIndex + 1);
+            newHistory.push(newFields);
+            // Limit history to 50 items
+            if (newHistory.length > 50) newHistory.shift();
+            return newHistory;
+        });
+        setHistoryIndex(prev => Math.min(prev + 1, 49));
+    }, [historyIndex]);
+
+    // Undo
+    const undo = useCallback(() => {
+        if (historyIndex > 0) {
+            setHistoryIndex(prev => prev - 1);
+            setFields(history[historyIndex - 1]);
+            setSelectedField(null);
+        }
+    }, [history, historyIndex]);
+
+    // Redo
+    const redo = useCallback(() => {
+        if (historyIndex < history.length - 1) {
+            setHistoryIndex(prev => prev + 1);
+            setFields(history[historyIndex + 1]);
+            setSelectedField(null);
+        }
+    }, [history, historyIndex]);
+
+    // Copy field
+    const copyField = useCallback(() => {
+        if (selectedField) {
+            setClipboard({ ...selectedField });
+        }
+    }, [selectedField]);
+
+    // Paste field
+    const pasteField = useCallback(() => {
+        if (clipboard) {
+            const newField: Field = {
+                ...clipboard,
+                id: `field-${Date.now()}`,
+                x: clipboard.x + 20,
+                y: clipboard.y + 20,
+                page: currentPage,
+            };
+            const newFields = [...fields, newField];
+            setFields(newFields);
+            saveToHistory(newFields);
+            setSelectedField(newField);
+        }
+    }, [clipboard, currentPage, fields, saveToHistory]);
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Don't trigger shortcuts when typing in input fields
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+                return;
+            }
+
+            // Delete / Backspace - Delete selected field
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedField) {
+                e.preventDefault();
+                const newFields = fields.filter(f => f.id !== selectedField.id);
+                setFields(newFields);
+                saveToHistory(newFields);
+                setSelectedField(null);
+            }
+
+            // Ctrl/Cmd + C - Copy
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedField) {
+                e.preventDefault();
+                copyField();
+            }
+
+            // Ctrl/Cmd + V - Paste
+            if ((e.ctrlKey || e.metaKey) && e.key === 'v' && clipboard) {
+                e.preventDefault();
+                pasteField();
+            }
+
+            // Ctrl/Cmd + Z - Undo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            }
+
+            // Ctrl/Cmd + Shift + Z - Redo
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') {
+                e.preventDefault();
+                redo();
+            }
+
+            // ? - Show shortcuts modal
+            if (e.key === '?') {
+                e.preventDefault();
+                setShowShortcutsModal(true);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedField, fields, clipboard, copyField, pasteField, undo, redo, saveToHistory]);
 
     useEffect(() => {
         const stored = sessionStorage.getItem('pendingTask');
@@ -64,25 +177,47 @@ export default function AssignFieldsPage() {
     };
 
     const addField = (type: string) => {
+        // Set appropriate default sizes for each field type
+        const fieldSizes: Record<string, { width: number; height: number }> = {
+            signature: { width: 200, height: 60 },
+            date: { width: 150, height: 35 },
+            text: { width: 200, height: 35 },
+            checkbox: { width: 120, height: 30 },
+            radio: { width: 120, height: 30 },
+            image: { width: 150, height: 100 },
+            hyperlink: { width: 200, height: 35 },
+        };
+        const size = fieldSizes[type] || { width: 150, height: 30 };
+
         const newField: Field = {
             id: `field-${Date.now()}`,
             type,
             x: 100,
             y: 100,
-            width: type === 'signature' ? 200 : 150,
-            height: type === 'signature' ? 60 : 30,
+            width: size.width,
+            height: size.height,
             page: currentPage,
-            required: true,
+            required: type !== 'checkbox' && type !== 'radio', // checkbox/radio not required by default
+            value: type === 'date' ? new Date().toISOString().split('T')[0] : undefined, // Default today's date
         };
-        setFields([...fields, newField]);
+        const newFields = [...fields, newField];
+        setFields(newFields);
+        saveToHistory(newFields);
     };
 
     const updateField = (id: string, updates: Partial<Field>) => {
-        setFields(fields.map(f => f.id === id ? { ...f, ...updates } : f));
+        const newFields = fields.map(f => f.id === id ? { ...f, ...updates } : f);
+        setFields(newFields);
+        // Don't save position updates to history (too frequent)
+        if (!('x' in updates) && !('y' in updates)) {
+            saveToHistory(newFields);
+        }
     };
 
     const deleteField = (id: string) => {
-        setFields(fields.filter(f => f.id !== id));
+        const newFields = fields.filter(f => f.id !== id);
+        setFields(newFields);
+        saveToHistory(newFields);
         if (selectedField?.id === id) {
             setSelectedField(null);
         }
@@ -102,7 +237,8 @@ export default function AssignFieldsPage() {
         setShowSignatureModal(false);
     };
 
-    const handleComplete = async () => {
+    // Show confirmation modal
+    const handleComplete = () => {
         if (!pdfData) {
             console.error('No PDF data available');
             alert('No PDF data available');
@@ -111,13 +247,21 @@ export default function AssignFieldsPage() {
 
         // Check if there are any fields with values
         const fieldsWithValues = fields.filter(f => f.value || f.type === 'date');
-        console.log('All fields:', fields);
-        console.log('Fields with values:', fieldsWithValues);
 
         if (fieldsWithValues.length === 0) {
             alert('Please add and fill at least one field before continuing.');
             return;
         }
+
+        // Show confirmation modal
+        setShowConfirmModal(true);
+    };
+
+    // Execute the actual embedding and download
+    const executeComplete = async () => {
+        setShowConfirmModal(false);
+
+        if (!pdfData) return;
 
         try {
             // Import pdfService dynamically
@@ -176,22 +320,45 @@ export default function AssignFieldsPage() {
 
             console.log('Total fields embedded:', embeddedCount);
 
-            // Trigger download of signed PDF
-            const blob = new Blob([currentPdfBytes.buffer.slice(0) as ArrayBuffer], { type: 'application/pdf' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${taskInfo?.taskName || 'signed'}_signed.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            // Convert signed PDF to base64
+            const signedPdfBase64 = btoa(
+                Array.from(currentPdfBytes).map(b => String.fromCharCode(b)).join('')
+            );
 
-            // Navigate to tasks page
-            router.push('/tasks');
+            // Save to database via API
+            const response = await fetch('/api/tasks/complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    taskName: taskInfo?.taskName || 'Untitled',
+                    signedPdfBase64,
+                    originalFileName: taskInfo?.fileName || 'document.pdf',
+                    pageCount,
+                    fields: fields.map(f => ({
+                        type: f.type,
+                        page: f.page,
+                        x: f.x,
+                        y: f.y,
+                        width: f.width,
+                        height: f.height,
+                        required: f.required,
+                        value: f.value,
+                    })),
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save task');
+            }
+
+            const result = await response.json();
+            console.log('Task saved:', result);
+
+            // Navigate to task preview page
+            router.push(`/task/${result.taskId}`);
         } catch (error) {
-            console.error('Error embedding signatures:', error);
-            alert('Error embedding signatures: ' + (error as Error).message);
+            console.error('Error completing task:', error);
+            alert('Error completing task: ' + (error as Error).message);
         }
     };
 
@@ -312,6 +479,122 @@ export default function AssignFieldsPage() {
                     onClose={() => setShowSignatureModal(false)}
                     onComplete={handleSignatureComplete}
                 />
+            )}
+
+            {/* Confirmation Modal */}
+            {showConfirmModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+                        <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                            <h3 className="text-lg font-semibold text-gray-900">Sign Yourself</h3>
+                            <button
+                                onClick={() => setShowConfirmModal(false)}
+                                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                            >
+                                <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-gray-600 text-center">Confirm file create</p>
+                        </div>
+                        <div className="flex items-center justify-end gap-3 p-4 bg-gray-50">
+                            <button
+                                onClick={() => setShowConfirmModal(false)}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={executeComplete}
+                                className="px-4 py-2 text-sm font-medium text-white bg-primary-500 rounded-lg hover:bg-primary-600 transition-colors"
+                            >
+                                Confirm
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Keyboard Shortcuts Modal */}
+            {showShortcutsModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+                        <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                            <h3 className="text-lg font-semibold text-gray-900">Keyboard Shortcuts</h3>
+                            <button
+                                onClick={() => setShowShortcutsModal(false)}
+                                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                            >
+                                <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-2xl">🗑️</span>
+                                    <span className="text-gray-600">Delete Field</span>
+                                </div>
+                                <kbd className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">Backspace</kbd>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-2xl">📋</span>
+                                    <span className="text-gray-600">Copy Field</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <kbd className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">Ctrl</kbd>
+                                    <span className="text-gray-400">+</span>
+                                    <kbd className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">C</kbd>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-2xl">📄</span>
+                                    <span className="text-gray-600">Paste Copied Field</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <kbd className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">Ctrl</kbd>
+                                    <span className="text-gray-400">+</span>
+                                    <kbd className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">V</kbd>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-2xl">↩️</span>
+                                    <span className="text-gray-600">Undo</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <kbd className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">Ctrl</kbd>
+                                    <span className="text-gray-400">+</span>
+                                    <kbd className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">Z</kbd>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-2xl">↪️</span>
+                                    <span className="text-gray-600">Redo</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <kbd className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">Ctrl</kbd>
+                                    <span className="text-gray-400">+</span>
+                                    <kbd className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">Shift</kbd>
+                                    <span className="text-gray-400">+</span>
+                                    <kbd className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">Z</kbd>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-4 bg-gray-50 border-t border-gray-100">
+                            <label className="flex items-center gap-2 text-sm text-gray-500">
+                                <input type="checkbox" className="rounded border-gray-300" />
+                                <span>Got it. Do not show it again.</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

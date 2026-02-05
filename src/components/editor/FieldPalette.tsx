@@ -10,13 +10,13 @@ interface FieldPaletteProps {
 }
 
 const fieldTypes = [
-    { type: 'signature', label: 'Signature', icon: SignatureIcon, premium: false },
-    { type: 'date', label: 'Date', icon: DateIcon, premium: false },
-    { type: 'text', label: 'Text', icon: TextIcon, premium: false },
-    { type: 'checkbox', label: 'Checkbox', icon: CheckboxIcon, premium: true },
-    { type: 'radio', label: 'Radio Button', icon: RadioIcon, premium: true },
-    { type: 'image', label: 'Image', icon: ImageIcon, premium: true },
-    { type: 'hyperlink', label: 'Hyperlink', icon: HyperlinkIcon, premium: true },
+    { type: 'signature', label: 'Signature', icon: SignatureIcon },
+    { type: 'date', label: 'Date', icon: DateIcon },
+    { type: 'text', label: 'Text', icon: TextIcon },
+    { type: 'checkbox', label: 'Checkbox', icon: CheckboxIcon },
+    { type: 'radio', label: 'Radio Button', icon: RadioIcon },
+    { type: 'image', label: 'Image', icon: ImageIcon },
+    { type: 'hyperlink', label: 'Hyperlink', icon: HyperlinkIcon },
 ];
 
 export default function FieldPalette({
@@ -87,18 +87,10 @@ export default function FieldPalette({
                         <button
                             key={field.type}
                             onClick={() => onAddField(field.type)}
-                            className={cn(
-                                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-left transition-colors',
-                                'hover:bg-gray-50 text-gray-700 hover:text-gray-900'
-                            )}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-left transition-colors hover:bg-gray-50 text-gray-700 hover:text-gray-900"
                         >
                             <field.icon className="w-5 h-5 text-gray-400" />
                             <span>{field.label}</span>
-                            {field.premium && (
-                                <svg className="w-4 h-4 text-amber-500 ml-auto" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                </svg>
-                            )}
                         </button>
                     ))}
                 </div>
