@@ -76,10 +76,11 @@ export async function addTextField(
     const pdfX = position.x * scaleX;
     // Align text in middle of height if provided, else just offset
     const heightOffset = position.height ? (position.height * scaleY * 0.7) : 10;
+    const padding = 8 * scaleX; // Match UI px-2 (8px)
     const pdfY = pageHeight - (position.y * scaleY) - heightOffset;
 
     page.drawText(text, {
-        x: pdfX + 5,
+        x: pdfX + padding,
         y: pdfY,
         size: (position.fontSize || 12) * scaleX,
         font,
@@ -121,7 +122,10 @@ export async function addCheckboxField(
 
     const boxSize = 12 * scaleX;
     const fieldHeight = position.height ? position.height * scaleY : boxSize;
-    const pdfX = position.x * scaleX + 5;
+    const fieldWidth = position.width ? position.width * scaleX : boxSize;
+
+    // Center checkbox in the field box
+    const pdfX = position.x * scaleX + (fieldWidth - boxSize) / 2;
     const pdfY = pageHeight - (position.y * scaleY) - (fieldHeight / 2) - (boxSize / 2);
 
     page.drawRectangle({
