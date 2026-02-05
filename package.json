@@ -1,0 +1,40 @@
+{
+    "name": "tandangin",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "lint": "next lint",
+        "db:generate": "prisma generate",
+        "db:push": "prisma db push",
+        "db:studio": "prisma studio"
+    },
+    "dependencies": {
+        "next": "14.1.0",
+        "react": "^18",
+        "react-dom": "^18",
+        "@prisma/client": "^5.9.0",
+        "next-auth": "^4.24.5",
+        "bcryptjs": "^2.4.3",
+        "pdf-lib": "^1.17.1",
+        "uuid": "^9.0.1",
+        "clsx": "^2.1.0",
+        "tailwind-merge": "^2.2.1"
+    },
+    "devDependencies": {
+        "typescript": "^5",
+        "@types/node": "^20",
+        "@types/react": "^18",
+        "@types/react-dom": "^18",
+        "@types/bcryptjs": "^2.4.6",
+        "@types/uuid": "^9.0.7",
+        "prisma": "^5.9.0",
+        "autoprefixer": "^10.0.1",
+        "postcss": "^8",
+        "tailwindcss": "^3.4.1",
+        "eslint": "^8",
+        "eslint-config-next": "14.1.0"
+    }
+}
