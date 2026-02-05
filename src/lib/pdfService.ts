@@ -1,5 +1,3 @@
-'use server';
-
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 export async function embedSignature(
@@ -11,15 +9,35 @@ export async function embedSignature(
     const pages = pdfDoc.getPages();
     const page = pages[position.page - 1];
 
+    // Get actual PDF page dimensions
+    const pageWidth = page.getWidth();
+    const pageHeight = page.getHeight();
+
+    console.log('PDF Page dimensions:', { width: pageWidth, height: pageHeight });
+    console.log('UI position:', position);
+
     // Convert data URL to bytes
     const signatureBytes = dataUrlToBytes(signatureDataUrl);
     const signatureImage = await pdfDoc.embedPng(signatureBytes);
 
+    // Calculate PDF coordinates (PDF origin is bottom-left, UI origin is top-left)
+    // Scale factor: UI uses 612px width, PDF might be different
+    const scaleX = pageWidth / 612;
+    const scaleY = pageHeight / 792;
+
+    const pdfX = position.x * scaleX;
+    const pdfY = pageHeight - (position.y * scaleY) - (position.height * scaleY);
+    const pdfWidth = position.width * scaleX;
+    const pdfHeight = position.height * scaleY;
+
+    console.log('Scale factors:', { scaleX, scaleY });
+    console.log('Calculated PDF coordinates:', { x: pdfX, y: pdfY, width: pdfWidth, height: pdfHeight });
+
     page.drawImage(signatureImage, {
-        x: position.x,
-        y: page.getHeight() - position.y - position.height,
-        width: position.width,
-        height: position.height,
+        x: pdfX,
+        y: pdfY,
+        width: pdfWidth,
+        height: pdfHeight,
     });
 
     return await pdfDoc.save();

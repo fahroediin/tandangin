@@ -33,17 +33,31 @@ export default function SignYourselfPage() {
 
         setLoading(true);
 
-        // In a real app, upload the file here
-        // For now, store in sessionStorage and navigate
-        const fileData = {
-            name: file.name,
-            size: file.size,
-            taskName,
-            type: 'self',
-        };
+        try {
+            // Read file as ArrayBuffer and convert to base64
+            const arrayBuffer = await file.arrayBuffer();
+            const bytes = new Uint8Array(arrayBuffer);
+            let binary = '';
+            for (let i = 0; i < bytes.length; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            const base64 = btoa(binary);
 
-        sessionStorage.setItem('pendingTask', JSON.stringify(fileData));
-        router.push('/create-task/assign-fields');
+            // Store in sessionStorage
+            const fileData = {
+                name: file.name,
+                size: file.size,
+                taskName,
+                type: 'self',
+                fileData: base64,
+            };
+
+            sessionStorage.setItem('pendingTask', JSON.stringify(fileData));
+            router.push('/create-task/assign-fields');
+        } catch (error) {
+            console.error('Error reading file:', error);
+            setLoading(false);
+        }
     };
 
     return (
