@@ -1,11 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Set worker source to CDN for the specific version we installed (3.11.174)
+// This avoids bundling issues with Next.js
+if (typeof window !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+}
 
 interface PdfRendererProps {
     pdfData: ArrayBuffer | null;
     currentPage: number;
-    width?: number;
+    width?: number; // Desired display width (default 612)
     onLoadSuccess?: (numPages: number) => void;
 }
 
@@ -15,100 +22,137 @@ export default function PdfRenderer({
     width = 612,
     onLoadSuccess,
 }: PdfRendererProps) {
-    const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
     const [loading, setLoading] = useState(false);
     const [pageCount, setPageCount] = useState(0);
+    const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
+    const [renderHeight, setRenderHeight] = useState(792); // Default logical height
 
+    // Load PDF Document
     useEffect(() => {
         if (!pdfData) {
-            setPdfUrl(null);
+            setPdfDoc(null);
+            setPageCount(0);
             return;
         }
 
         setLoading(true);
 
-        // Create blob URL from ArrayBuffer
-        const blob = new Blob([pdfData], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        setPdfUrl(url);
-
-        // Get page count using pdf-lib
         (async () => {
             try {
-                const { PDFDocument } = await import('pdf-lib');
-                const pdfDoc = await PDFDocument.load(pdfData);
-                const count = pdfDoc.getPageCount();
-                setPageCount(count);
-                onLoadSuccess?.(count);
+                // Use the ArrayBuffer directly
+                const loadingTask = pdfjsLib.getDocument(pdfData.slice(0));
+                const doc = await loadingTask.promise;
+                setPdfDoc(doc);
+                setPageCount(doc.numPages);
+                onLoadSuccess?.(doc.numPages);
             } catch (err) {
                 console.error('Error loading PDF:', err);
             } finally {
                 setLoading(false);
             }
         })();
-
-        // Cleanup URL on unmount
-        return () => {
-            if (url) {
-                URL.revokeObjectURL(url);
-            }
-        };
     }, [pdfData, onLoadSuccess]);
+
+    // Render Page to Canvas
+    useEffect(() => {
+        if (!pdfDoc || !canvasRef.current || currentPage < 1 || currentPage > pdfDoc.numPages) return;
+
+        let isCancelled = false;
+
+        (async () => {
+            // Fetch the page
+            // Note: getPage is 1-indexed
+            const page = await pdfDoc.getPage(currentPage);
+
+            if (isCancelled) return;
+
+            // 1. Get the viewport at scale 1 (original size)
+            // e.g., for US Letter: 612 x 792
+            const originalViewport = page.getViewport({ scale: 1 });
+
+            // 2. Calculate the stored scale needed to match the requested UI width
+            // If the PDF is A4 (595.28 width), and we want 612 width:
+            // scale = 612 / 595.28 = 1.028
+            const scale = width / originalViewport.width;
+
+            // 3. Create a viewport with that scale
+            const viewport = page.getViewport({ scale });
+
+            // 4. Update canvas dimensions to match the scaled viewport
+            const canvas = canvasRef.current!;
+            const context = canvas.getContext('2d');
+            if (!context) return;
+
+            // Set visual size matches logical size
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+
+            // Update parent container's expected height
+            setRenderHeight(viewport.height);
+
+            // 5. Render
+            const renderContext = {
+                canvasContext: context,
+                viewport: viewport,
+            };
+
+            try {
+                await page.render(renderContext).promise;
+            } catch (err) {
+                // Rendering might be cancelled or fail
+                if (!isCancelled) {
+                    console.error("Page render error:", err);
+                }
+            }
+        })();
+
+        return () => {
+            isCancelled = true;
+        };
+
+    }, [pdfDoc, currentPage, width]);
 
     if (!pdfData) {
         return (
-            <div className="w-full flex items-center justify-center text-gray-400 bg-gray-50" style={{ height: 792 }}>
-                <div className="text-center">
-                    <svg className="w-16 h-16 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <p className="text-sm">No document loaded</p>
-                </div>
+            <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-400">
+                No PDF Document
             </div>
         );
     }
 
     if (loading) {
         return (
-            <div className="w-full flex items-center justify-center bg-gray-50" style={{ height: 792 }}>
-                <div className="flex items-center gap-2 text-gray-500">
-                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    <span className="text-sm">Loading PDF...</span>
-                </div>
+            <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-500">
+                <svg className="w-6 h-6 animate-spin mr-2" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Loading PDF...
             </div>
         );
     }
 
-    if (!pdfUrl) {
-        return null;
-    }
-
-    // Use embed/object for PDF preview
     return (
-        <div className="relative" style={{ width, height: 792 }}>
-            <object
-                data={`${pdfUrl}#page=${currentPage}&toolbar=0&navpanes=0&scrollbar=0`}
-                type="application/pdf"
-                width="100%"
-                height="100%"
-                className="rounded-lg"
-            >
-                <embed
-                    src={`${pdfUrl}#page=${currentPage}&toolbar=0&navpanes=0&scrollbar=0`}
-                    type="application/pdf"
-                    width="100%"
-                    height="100%"
-                />
-            </object>
-            {/* Page indicator overlay */}
-            {pageCount > 0 && (
-                <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
-                    Page {currentPage} of {pageCount}
-                </div>
-            )}
+        <div
+            className="relative shadow-md"
+            style={{ width: width, height: renderHeight }}
+        >
+            <canvas
+                ref={canvasRef}
+                className="block"
+                style={{ width: width, height: renderHeight }}
+            />
+
+            {/* Page info overlay */}
+            <div className="absolute bottom-4 right-4 bg-black/50 text-white text-xs px-2 py-1 rounded pointer-events-none">
+                Page {currentPage} of {pageCount}
+            </div>
+
+            {/* Dimensions Debug */}
+            <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-1 rounded pointer-events-none opacity-50">
+                W: {width}px H: {Math.round(renderHeight)}px
+            </div>
         </div>
     );
 }

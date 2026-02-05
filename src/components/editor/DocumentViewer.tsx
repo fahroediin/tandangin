@@ -114,8 +114,22 @@ function FieldContent({
 
     // Handle date field
     if (field.type === 'date') {
+        // Format date for display
+        const formatDate = (dateStr: string) => {
+            try {
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('id-ID', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                });
+            } catch {
+                return dateStr;
+            }
+        };
+
         if (isPreview && field.value) {
-            return <span className="text-sm px-2">{field.value}</span>;
+            return <span className="text-sm px-2">{formatDate(field.value)}</span>;
         }
         return (
             <input

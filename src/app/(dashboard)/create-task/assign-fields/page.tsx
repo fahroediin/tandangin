@@ -265,7 +265,7 @@ export default function AssignFieldsPage() {
 
         try {
             // Import pdfService dynamically
-            const { embedSignature, addTextField, addDateField } = await import('@/lib/pdfService');
+            const { embedSignature, addTextField, addDateField, addCheckboxField, addImageField } = await import('@/lib/pdfService');
 
             let currentPdfBytes: Uint8Array = new Uint8Array(pdfData);
             let embeddedCount = 0;
@@ -274,7 +274,8 @@ export default function AssignFieldsPage() {
             for (const field of fields) {
                 console.log('Processing field:', field.type, 'value:', field.value ? 'has value' : 'no value');
 
-                if (!field.value && field.type !== 'date') {
+                // Skip fields without values (except date which always has a value, and checkbox which can be unchecked)
+                if (!field.value && field.type !== 'date' && field.type !== 'checkbox') {
                     console.log('Skipping field without value:', field.id);
                     continue;
                 }
@@ -294,9 +295,12 @@ export default function AssignFieldsPage() {
                         console.log('Signature embedded successfully');
                     } else if (field.type === 'date') {
                         console.log('Embedding date at:', { x: field.x, y: field.y, page: field.page });
-                        const result = await addDateField(currentPdfBytes, new Date(), {
+                        const dateValue = field.value || new Date().toISOString().split('T')[0];
+                        const result = await addDateField(currentPdfBytes, dateValue, {
                             x: field.x,
                             y: field.y,
+                            width: field.width,
+                            height: field.height,
                             page: field.page,
                         });
                         currentPdfBytes = new Uint8Array(result);
@@ -307,11 +311,50 @@ export default function AssignFieldsPage() {
                         const result = await addTextField(currentPdfBytes, field.value, {
                             x: field.x,
                             y: field.y,
+                            width: field.width,
+                            height: field.height,
                             page: field.page,
                         });
                         currentPdfBytes = new Uint8Array(result);
                         embeddedCount++;
                         console.log('Text embedded successfully');
+                    } else if (field.type === 'checkbox') {
+                        console.log('Embedding checkbox at:', { x: field.x, y: field.y, page: field.page, checked: field.value === 'true' });
+                        const result = await addCheckboxField(currentPdfBytes, field.value === 'true', {
+                            x: field.x,
+                            y: field.y,
+                            width: field.width,
+                            height: field.height,
+                            page: field.page,
+                        });
+                        currentPdfBytes = new Uint8Array(result);
+                        embeddedCount++;
+                        console.log('Checkbox embedded successfully');
+                    } else if (field.type === 'image' && field.value) {
+                        console.log('Embedding image at:', { x: field.x, y: field.y, page: field.page });
+                        const result = await addImageField(currentPdfBytes, field.value, {
+                            x: field.x,
+                            y: field.y,
+                            width: field.width,
+                            height: field.height,
+                            page: field.page,
+                        });
+                        currentPdfBytes = new Uint8Array(result);
+                        embeddedCount++;
+                        console.log('Image embedded successfully');
+                    } else if (field.type === 'hyperlink' && field.value) {
+                        // Hyperlink rendered as text
+                        console.log('Embedding hyperlink at:', { x: field.x, y: field.y, page: field.page });
+                        const result = await addTextField(currentPdfBytes, field.value, {
+                            x: field.x,
+                            y: field.y,
+                            width: field.width,
+                            height: field.height,
+                            page: field.page,
+                        });
+                        currentPdfBytes = new Uint8Array(result);
+                        embeddedCount++;
+                        console.log('Hyperlink embedded successfully');
                     }
                 } catch (fieldError) {
                     console.error('Error embedding field:', field.id, fieldError);

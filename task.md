@@ -1,8 +1,9 @@
 # Tandangin E-Sign Development Tasks
 
 ## Phase 1: Complete E-Sign Me Flow
-- [ ] PDF Rendering - Display uploaded PDF in DocumentViewer
-- [ ] Signature Embedding - Embed signature into PDF using pdf-lib
+- [x] PDF Rendering - Display uploaded PDF in DocumentViewer (Initial iframe implementation)
+- [ ] Implement robust Canvas-based PDF Rendering (using pdfjs-dist)
+- [x] Signature Embedding - Embed signature into PDF using pdf-lib
 - [ ] Add Red color option to SignatureModal
 - [ ] Add Create Initials feature to SignatureModal
 - [ ] Backend integration - Save task/document to database

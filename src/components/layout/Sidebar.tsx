@@ -48,19 +48,7 @@ export default function Sidebar() {
                 })}
             </nav>
 
-            {/* Upgrade Banner */}
-            <div className="p-4">
-                <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
-                    <div className="flex items-center gap-2 mb-2">
-                        <span className="text-amber-600">✨</span>
-                        <span className="text-sm font-semibold text-amber-800">Upgrade</span>
-                    </div>
-                    <p className="text-xs text-amber-700 mb-3">Get more signatures and advanced features</p>
-                    <button className="w-full py-2 px-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-medium rounded-lg hover:from-amber-600 hover:to-orange-600 transition-all">
-                        Upgrade Now
-                    </button>
-                </div>
-            </div>
+
 
             {/* Logout */}
             <div className="p-4 border-t border-gray-100">
