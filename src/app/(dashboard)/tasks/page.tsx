@@ -51,6 +51,38 @@ export default function TasksPage() {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
     const [tabCounts, setTabCounts] = useState<Record<string, number>>({});
+    const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+    const [deleting, setDeleting] = useState(false);
+
+    const handleDeleteTask = async (taskId: string) => {
+        setDeleting(true);
+        try {
+            const response = await fetch(`/api/tasks/${taskId}`, {
+                method: 'DELETE',
+            });
+            if (!response.ok) throw new Error('Failed to delete task');
+            setDeleteConfirmId(null);
+            setOpenMenuId(null);
+            fetchTasks(); // Refresh the list
+        } catch (error) {
+            console.error('Error deleting task:', error);
+            alert('Gagal menghapus task');
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = () => {
+            if (openMenuId) {
+                setOpenMenuId(null);
+            }
+        };
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, [openMenuId]);
 
     const fetchTasks = useCallback(async () => {
         setLoading(true);
@@ -189,17 +221,68 @@ export default function TasksPage() {
                                     </svg>
                                 </div>
                                 {/* Three dot menu */}
-                                <button
-                                    className="absolute top-2 right-2 p-2 bg-white/80 hover:bg-white rounded-full transition-colors"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        // TODO: Show menu
-                                    }}
-                                >
-                                    <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01" />
-                                    </svg>
-                                </button>
+                                <div className="absolute top-2 right-2">
+                                    <button
+                                        className="p-2 bg-white/80 hover:bg-white rounded-full transition-colors"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setOpenMenuId(openMenuId === task.id ? null : task.id);
+                                        }}
+                                    >
+                                        <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01" />
+                                        </svg>
+                                    </button>
+
+                                    {/* Dropdown Menu */}
+                                    {openMenuId === task.id && (
+                                        <div
+                                            className="absolute top-full right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <button
+                                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    router.push(`/task/${task.id}`);
+                                                }}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                </svg>
+                                                Lihat
+                                            </button>
+                                            <button
+                                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    // TODO: Archive functionality
+                                                    setOpenMenuId(null);
+                                                }}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                                </svg>
+                                                Arsipkan
+                                            </button>
+                                            <hr className="my-1 border-gray-100" />
+                                            <button
+                                                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setDeleteConfirmId(task.id);
+                                                    setOpenMenuId(null);
+                                                }}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                                Hapus
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             {/* Card content */}
                             <div className="p-4">
@@ -242,6 +325,51 @@ export default function TasksPage() {
                     </div>
                     <h3 className="text-lg font-medium text-gray-900 mb-2">No tasks yet</h3>
                     <p className="text-gray-500 mb-6">Get started by creating your first signing task</p>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirmId && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-xl p-6 max-w-sm mx-4 shadow-xl">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </div>
+                            <h3 className="text-lg font-semibold text-gray-900">Hapus Task?</h3>
+                        </div>
+                        <p className="text-gray-600 mb-6">
+                            Task ini akan dipindahkan ke Trash. Anda masih bisa memulihkannya nanti.
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                                onClick={() => setDeleteConfirmId(null)}
+                                disabled={deleting}
+                            >
+                                Batal
+                            </button>
+                            <button
+                                className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+                                onClick={() => handleDeleteTask(deleteConfirmId)}
+                                disabled={deleting}
+                            >
+                                {deleting ? (
+                                    <>
+                                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                        </svg>
+                                        Menghapus...
+                                    </>
+                                ) : (
+                                    'Hapus'
+                                )}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
