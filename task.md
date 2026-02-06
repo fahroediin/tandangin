@@ -2,13 +2,13 @@
 
 ## Phase 1: Complete E-Sign Me Flow
 - [x] PDF Rendering - Display uploaded PDF in DocumentViewer (Initial iframe implementation)
-- [ ] Implement robust Canvas-based PDF Rendering (using pdfjs-dist)
+- [x] Implement robust Canvas-based PDF Rendering (using pdfjs-dist)
 - [x] Signature Embedding - Embed signature into PDF using pdf-lib
-- [ ] Add Red color option to SignatureModal
-- [ ] Add Create Initials feature to SignatureModal
-- [ ] Backend integration - Save task/document to database
-- [ ] Implement Audit Trail logging
-- [ ] Generate Audit Trail PDF report
+- [x] Add Red color option to SignatureModal
+- [x] Add Create Initials feature to SignatureModal
+- [x] Backend integration - Save task/document to database
+- [x] Implement Audit Trail logging
+- [x] Generate Audit Trail PDF report
 
 ## Phase 2: Request E-Sign Flow
 - [ ] Identity Authentication settings in recipient modal

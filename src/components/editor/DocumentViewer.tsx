@@ -14,6 +14,8 @@ interface Field {
     page: number;
     value?: string;
     required: boolean;
+    recipientId?: string;
+    recipientColor?: string;
 }
 
 interface DocumentViewerProps {
@@ -44,7 +46,11 @@ const getFieldLabel = (type: string) => {
     return labels[type] || type;
 };
 
-const getFieldColor = (type: string) => {
+const getFieldColor = (type: string, recipientColor?: string) => {
+    // If recipient color is provided, use it
+    if (recipientColor) {
+        return ''; // We'll use inline styles instead
+    }
     const colors: Record<string, string> = {
         signature: 'bg-blue-50 border-blue-400 text-blue-600',
         date: 'bg-green-50 border-green-400 text-green-600',
@@ -55,6 +61,19 @@ const getFieldColor = (type: string) => {
         hyperlink: 'bg-indigo-50 border-indigo-400 text-indigo-600',
     };
     return colors[type] || 'bg-gray-50 border-gray-400 text-gray-600';
+};
+
+// Helper to lighten a hex color for background
+const getLightColor = (hex: string) => {
+    // Convert hex to RGB, lighten, and return
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    // Lighten by mixing with white (90% white, 10% original)
+    const lightR = Math.round(r * 0.2 + 255 * 0.8);
+    const lightG = Math.round(g * 0.2 + 255 * 0.8);
+    const lightB = Math.round(b * 0.2 + 255 * 0.8);
+    return `rgb(${lightR}, ${lightG}, ${lightB})`;
 };
 
 // Field content renderer based on type
@@ -347,7 +366,7 @@ export default function DocumentViewer({
                         className={cn(
                             'absolute flex items-center justify-center',
                             'border-2 border-dashed rounded cursor-move select-none',
-                            getFieldColor(field.type),
+                            getFieldColor(field.type, field.recipientColor),
                             selectedFieldId === field.id && 'ring-2 ring-primary-500 ring-offset-2',
                             isPreview && 'cursor-default border-transparent',
                             dragging === field.id && 'opacity-80'
@@ -358,6 +377,11 @@ export default function DocumentViewer({
                             width: field.width,
                             height: field.height,
                             zIndex: selectedFieldId === field.id ? 20 : 10,
+                            ...(field.recipientColor ? {
+                                backgroundColor: getLightColor(field.recipientColor),
+                                borderColor: field.recipientColor,
+                                color: field.recipientColor,
+                            } : {}),
                         }}
                         onClick={() => onFieldClick(field)}
                         onMouseDown={(e) => handleMouseDown(e, field)}

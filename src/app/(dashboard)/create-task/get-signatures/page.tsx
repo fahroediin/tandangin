@@ -8,7 +8,7 @@ interface Recipient {
     id: string;
     name: string;
     email: string;
-    role: 'signer' | 'editor';
+    role: 'signer' | 'editor' | 'cc';
     color: string;
     order: number;
 }
@@ -62,19 +62,42 @@ export default function GetSignaturesPage() {
         setRecipients(recipients.filter(r => r.id !== id));
     };
 
-    const handleContinue = () => {
+    const handleContinue = async () => {
         if (!file || !taskName || recipients.length === 0) return;
 
-        const taskData = {
-            name: file.name,
-            taskName,
-            type: 'request',
-            recipients,
-            setOrder,
-        };
+        setProcessing(true);
 
-        sessionStorage.setItem('pendingTask', JSON.stringify(taskData));
-        router.push('/create-task/assign-fields');
+        try {
+            // Read file as base64
+            const reader = new FileReader();
+            const fileData = await new Promise<string>((resolve, reject) => {
+                reader.onload = () => {
+                    const base64 = (reader.result as string).split(',')[1] ||
+                        btoa(Array.from(new Uint8Array(reader.result as ArrayBuffer)).map(b => String.fromCharCode(b)).join(''));
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+
+            const taskData = {
+                name: file.name,
+                fileName: file.name,
+                taskName,
+                type: 'request',
+                recipients,
+                setOrder,
+                fileData, // Base64 encoded PDF
+            };
+
+            sessionStorage.setItem('pendingTask', JSON.stringify(taskData));
+            router.push('/create-task/assign-fields');
+        } catch (error) {
+            console.error('Error reading file:', error);
+            alert('Failed to process file');
+        } finally {
+            setProcessing(false);
+        }
     };
 
     return (

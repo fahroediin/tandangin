@@ -16,6 +16,17 @@ interface Field {
     page: number;
     value?: string;
     required: boolean;
+    recipientId?: string;
+    recipientColor?: string;
+}
+
+interface Recipient {
+    id: string;
+    name: string;
+    email: string;
+    color: string;
+    role: string;
+    order: number;
 }
 
 export default function AssignFieldsPage() {
@@ -38,6 +49,10 @@ export default function AssignFieldsPage() {
     const [clipboard, setClipboard] = useState<Field | null>(null);
     const [history, setHistory] = useState<Field[][]>([[]]);
     const [historyIndex, setHistoryIndex] = useState(0);
+
+    // Recipients state (from pendingTask for request e-sign flow)
+    const recipients: Recipient[] = taskInfo?.recipients || [];
+    const isRequestFlow = taskInfo?.type === 'request' && recipients.length > 0;
 
     // Save to history when fields change
     const saveToHistory = useCallback((newFields: Field[]) => {
@@ -164,6 +179,16 @@ export default function AssignFieldsPage() {
         }
     }, []);
 
+    // Selected recipient for field assignment
+    const [selectedRecipient, setSelectedRecipient] = useState<string>('');
+
+    // Set default recipient when taskInfo loads
+    useEffect(() => {
+        if (recipients.length > 0 && !selectedRecipient) {
+            setSelectedRecipient(recipients[0].id);
+        }
+    }, [recipients, selectedRecipient]);
+
     const handlePageCountChange = useCallback((numPages: number) => {
         setPageCount(numPages);
     }, []);
@@ -189,6 +214,9 @@ export default function AssignFieldsPage() {
         };
         const size = fieldSizes[type] || { width: 150, height: 30 };
 
+        // Get recipient info for request flow
+        const recipient = recipients.find(r => r.id === selectedRecipient);
+
         const newField: Field = {
             id: `field-${Date.now()}`,
             type,
@@ -199,6 +227,8 @@ export default function AssignFieldsPage() {
             page: currentPage,
             required: type !== 'checkbox' && type !== 'radio', // checkbox/radio not required by default
             value: type === 'date' ? new Date().toISOString().split('T')[0] : undefined, // Default today's date
+            recipientId: isRequestFlow ? selectedRecipient : undefined,
+            recipientColor: isRequestFlow ? recipient?.color : undefined,
         };
         const newFields = [...fields, newField];
         setFields(newFields);
@@ -225,7 +255,8 @@ export default function AssignFieldsPage() {
 
     const handleFieldClick = (field: Field) => {
         setSelectedField(field);
-        if (field.type === 'signature' && !field.value) {
+        // Only open signature modal for self-sign flow (not request flow)
+        if (!isRequestFlow && field.type === 'signature' && !field.value) {
             setShowSignatureModal(true);
         }
     };
@@ -245,7 +276,23 @@ export default function AssignFieldsPage() {
             return;
         }
 
-        // Check if there are any fields with values
+        // For Request E-Sign: just check if there are any fields placed
+        if (isRequestFlow) {
+            if (fields.length === 0) {
+                alert('Please add at least one field for recipients to fill.');
+                return;
+            }
+            // Check if all fields have a recipient assigned
+            const unassignedFields = fields.filter(f => !f.recipientId);
+            if (unassignedFields.length > 0) {
+                alert('Please ensure all fields are assigned to a recipient.');
+                return;
+            }
+            setShowConfirmModal(true);
+            return;
+        }
+
+        // For self-sign: check if there are any fields with values
         const fieldsWithValues = fields.filter(f => f.value || f.type === 'date');
 
         if (fieldsWithValues.length === 0) {
@@ -263,6 +310,65 @@ export default function AssignFieldsPage() {
 
         if (!pdfData) return;
 
+        // For Request E-Sign flow: save task and fields to database, then navigate to send
+        if (isRequestFlow) {
+            try {
+                // Convert PDF to base64
+                const pdfBase64 = btoa(
+                    Array.from(new Uint8Array(pdfData)).map(b => String.fromCharCode(b)).join('')
+                );
+
+                const response = await fetch('/api/tasks/create-request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        taskName: taskInfo?.taskName || 'Untitled',
+                        originalFileName: taskInfo?.fileName || 'document.pdf',
+                        pdfBase64,
+                        pageCount,
+                        recipients: recipients.map(r => ({
+                            id: r.id, // Send temp ID for mapping fields
+                            name: r.name,
+                            email: r.email,
+                            role: r.role,
+                            order: r.order,
+                            color: r.color,
+                        })),
+                        fields: fields.map(f => ({
+                            type: f.type,
+                            page: f.page,
+                            x: f.x,
+                            y: f.y,
+                            width: f.width,
+                            height: f.height,
+                            required: f.required,
+                            recipientId: f.recipientId,
+                        })),
+                        setOrder: taskInfo?.setOrder || false,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || errorData.details || 'Failed to create request task');
+                }
+
+                const result = await response.json();
+                console.log('Request task created:', result);
+
+                // Clear session storage
+                sessionStorage.removeItem('pendingTask');
+
+                // Navigate to task detail page where they can send
+                router.push(`/task/${result.taskId}`);
+            } catch (error) {
+                console.error('Error creating request task:', error);
+                alert('Error creating request: ' + (error as Error).message);
+            }
+            return;
+        }
+
+        // Self-sign flow: embed all fields with values
         try {
             // Import pdfService dynamically
             const { embedSignature, addTextField, addDateField, addCheckboxField, addImageField } = await import('@/lib/pdfService');
@@ -446,7 +552,12 @@ export default function AssignFieldsPage() {
             {/* Main content */}
             <div className="flex-1 flex bg-gray-100">
                 {/* Left Sidebar - Field Palette */}
-                <FieldPalette onAddField={addField} />
+                <FieldPalette
+                    onAddField={addField}
+                    recipients={isRequestFlow ? recipients.map(r => ({ id: r.id, name: r.name, email: r.email, color: r.color })) : []}
+                    selectedRecipient={selectedRecipient}
+                    onSelectRecipient={setSelectedRecipient}
+                />
 
                 {/* Document Viewer */}
                 <div className="flex-1 flex flex-col">

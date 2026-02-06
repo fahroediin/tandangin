@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 interface FieldPaletteProps {
     onAddField: (type: string) => void;
-    recipients?: Array<{ id: string; name: string; color: string }>;
+    recipients?: Array<{ id: string; name: string; email: string; color: string }>;
     selectedRecipient?: string;
     onSelectRecipient?: (id: string) => void;
 }
@@ -66,33 +66,59 @@ export default function FieldPalette({
                     <span className="font-medium">Create Fields</span>
                 </button>
 
-                {/* Recipient selector (if available) */}
+                {/* Recipient selector with color (for request signatures) */}
                 {recipients.length > 0 && (
                     <div className="mb-4">
-                        <select
-                            value={selectedRecipient}
-                            onChange={(e) => onSelectRecipient?.(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-                        >
-                            {recipients.map(r => (
-                                <option key={r.id} value={r.id}>{r.name}</option>
-                            ))}
-                        </select>
+                        <div className="relative">
+                            <div
+                                className="w-full flex items-center gap-3 px-3 py-2.5 border border-gray-200 rounded-lg cursor-pointer hover:border-gray-300 transition-colors"
+                                style={{ borderLeftWidth: '4px', borderLeftColor: recipients.find(r => r.id === selectedRecipient)?.color || '#3b82f6' }}
+                            >
+                                <div
+                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
+                                    style={{ backgroundColor: recipients.find(r => r.id === selectedRecipient)?.color || '#3b82f6' }}
+                                >
+                                    {(recipients.find(r => r.id === selectedRecipient)?.name || 'R')[0].toUpperCase()}
+                                </div>
+                                <select
+                                    value={selectedRecipient}
+                                    onChange={(e) => onSelectRecipient?.(e.target.value)}
+                                    className="flex-1 text-sm font-medium text-gray-900 bg-transparent border-none focus:outline-none cursor-pointer appearance-none"
+                                >
+                                    {recipients.map(r => (
+                                        <option key={r.id} value={r.id}>{r.name || r.email}</option>
+                                    ))}
+                                </select>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
                     </div>
                 )}
 
                 {/* Field type buttons */}
                 <div className="space-y-1">
-                    {fieldTypes.map((field) => (
-                        <button
-                            key={field.type}
-                            onClick={() => onAddField(field.type)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-left transition-colors hover:bg-gray-50 text-gray-700 hover:text-gray-900"
-                        >
-                            <field.icon className="w-5 h-5 text-gray-400" />
-                            <span>{field.label}</span>
-                        </button>
-                    ))}
+                    {fieldTypes.map((field) => {
+                        const selectedColor = recipients.find(r => r.id === selectedRecipient)?.color;
+                        return (
+                            <button
+                                key={field.type}
+                                onClick={() => onAddField(field.type)}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-left transition-colors hover:bg-gray-50 text-gray-700 hover:text-gray-900"
+                            >
+                                <field.icon className="w-5 h-5 text-gray-400" />
+                                <span>{field.label}</span>
+                                {recipients.length > 0 && (
+                                    <span className="ml-auto">
+                                        <svg className="w-4 h-4" style={{ color: selectedColor }} fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M7 10l5 5 5-5H7z" />
+                                        </svg>
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
         </aside>

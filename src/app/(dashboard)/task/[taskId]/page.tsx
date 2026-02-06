@@ -25,6 +25,14 @@ interface Task {
             email: string;
         } | null;
     }[];
+    recipients: {
+        id: string;
+        name: string;
+        email: string;
+        role: string;
+        status: string;
+        color: string;
+    }[];
 }
 
 export default function TaskPreviewPage() {
@@ -146,33 +154,78 @@ export default function TaskPreviewPage() {
             </div>
 
             {/* Content */}
-            <div className="flex-1 flex items-center justify-center p-8">
-                {task.documents[0] ? (
-                    <div className="bg-white rounded-xl shadow-lg overflow-hidden" style={{ width: 700, height: 900 }}>
-                        <object
-                            data={`/api/documents/${task.documents[0].id}/download`}
-                            type="application/pdf"
-                            width="100%"
-                            height="100%"
-                        >
-                            <div className="flex items-center justify-center h-full">
-                                <div className="text-center">
-                                    <p className="text-gray-500 mb-4">Unable to display PDF</p>
-                                    <button
-                                        onClick={handleDownload}
-                                        className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600"
-                                    >
-                                        Download PDF
-                                    </button>
+            <div className="flex-1 flex max-h-[calc(100vh-4rem)]">
+                {/* Recipients Sidebar */}
+                <div className="w-80 bg-white border-r border-gray-200 p-6 overflow-y-auto">
+                    <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">
+                        Recipients
+                    </h2>
+                    <div className="space-y-4">
+                        {task.recipients?.map((recipient) => (
+                            <div key={recipient.id} className="flex items-start gap-3">
+                                <div
+                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm shrink-0"
+                                    style={{ backgroundColor: recipient.color || '#3b82f6' }}
+                                >
+                                    {recipient.name.charAt(0)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-900 truncate">
+                                        {recipient.name}
+                                    </p>
+                                    <p className="text-xs text-gray-500 truncate mb-1">
+                                        {recipient.email}
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${recipient.status === 'signed' ? 'bg-green-100 text-green-800' :
+                                                recipient.status === 'viewed' ? 'bg-blue-100 text-blue-800' :
+                                                    'bg-gray-100 text-gray-800'
+                                            }`}>
+                                            {recipient.status === 'signed' ? 'Signed' :
+                                                recipient.status === 'viewed' ? 'Viewed' : 'Pending'}
+                                        </span>
+                                        <span className="text-xs text-gray-400 capitalize">
+                                            • {recipient.role}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-                        </object>
+                        ))}
+                        {(!task.recipients || task.recipients.length === 0) && (
+                            <p className="text-sm text-gray-500 italic">No recipients</p>
+                        )}
                     </div>
-                ) : (
-                    <div className="text-center text-gray-500">
-                        No document available
-                    </div>
-                )}
+                </div>
+
+                {/* Document Viewer */}
+                <div className="flex-1 overflow-auto bg-gray-100 p-8 flex items-center justify-center">
+                    {task.documents[0] ? (
+                        <div className="bg-white rounded-xl shadow-lg overflow-hidden" style={{ width: 700, height: 900 }}>
+                            <object
+                                data={`/api/documents/${task.documents[0].id}/download`}
+                                type="application/pdf"
+                                width="100%"
+                                height="100%"
+                            >
+                                <div className="flex items-center justify-center h-full">
+                                    <div className="text-center">
+                                        <p className="text-gray-500 mb-4">Unable to display PDF</p>
+                                        <button
+                                            onClick={handleDownload}
+                                            className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600"
+                                        >
+                                            Download PDF
+                                        </button>
+                                    </div>
+                                </div>
+                            </object>
+                        </div>
+                    ) : (
+                        <div className="text-center text-gray-500">
+                            No document available
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Audit Trail Modal */}

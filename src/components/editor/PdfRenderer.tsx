@@ -76,22 +76,30 @@ export default function PdfRenderer({
             // scale = 612 / 595.28 = 1.028
             const scale = width / originalViewport.width;
 
-            // 3. Create a viewport with that scale
-            const viewport = page.getViewport({ scale });
+            // 3. Account for HiDPI/Retina displays
+            const pixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+            const renderScale = scale * pixelRatio;
 
-            // 4. Update canvas dimensions to match the scaled viewport
+            // 4. Create a viewport with the render scale
+            const viewport = page.getViewport({ scale: renderScale });
+
+            // 5. Update canvas dimensions for HiDPI rendering
             const canvas = canvasRef.current!;
             const context = canvas.getContext('2d');
             if (!context) return;
 
-            // Set visual size matches logical size
+            // Set actual canvas size (higher resolution for HiDPI)
             canvas.width = viewport.width;
             canvas.height = viewport.height;
 
-            // Update parent container's expected height
-            setRenderHeight(viewport.height);
+            // Scale canvas CSS size to display at intended width
+            canvas.style.width = `${width}px`;
+            canvas.style.height = `${viewport.height / pixelRatio}px`;
 
-            // 5. Render
+            // Update parent container's expected height
+            setRenderHeight(viewport.height / pixelRatio);
+
+            // 6. Render
             const renderContext = {
                 canvasContext: context,
                 viewport: viewport,
@@ -147,11 +155,6 @@ export default function PdfRenderer({
             {/* Page info overlay */}
             <div className="absolute bottom-4 right-4 bg-black/50 text-white text-xs px-2 py-1 rounded pointer-events-none">
                 Page {currentPage} of {pageCount}
-            </div>
-
-            {/* Dimensions Debug */}
-            <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-1 rounded pointer-events-none opacity-50">
-                W: {width}px H: {Math.round(renderHeight)}px
             </div>
         </div>
     );

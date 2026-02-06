@@ -77,10 +77,12 @@ model Recipient {
   email             String
   role              String   @default("signer") // signer, editor, cc
   order             Int      @default(0)
-  status            String   @default("pending") // pending, signed, declined
+  status            String   @default("pending") // pending, viewed, signed, declined
   signedAt          DateTime?
-  signingToken      String   @unique @default(cuid())
-  identityAuth      Boolean  @default(false)
+  viewedAt          DateTime?
+  signingToken      String?  @unique
+  color             String   @default("#3b82f6")
+  identityAuth      String   @default("none") // none, email_otp, sms_otp
   viewPermission    String   @default("full") // full, limited
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -95,10 +97,10 @@ model Field {
   taskId       String
   documentId   String
   recipientId  String?
-  type         String   // signature, date, text, checkbox, radio, image, hyperlink
+  type         String   // signature, initials, date, text, checkbox, radio, image, hyperlink
   page         Int      @default(1)
-  x            Float
-  y            Float
+  positionX    Float    @map("x")
+  positionY    Float    @map("y")
   width        Float
   height       Float
   required     Boolean  @default(true)
