@@ -350,7 +350,9 @@ export default function AssignFieldsPage() {
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || errorData.details || 'Failed to create request task');
+                    // Prioritize detailed message if available, otherwise general error
+                    const errorMessage = errorData.details || errorData.error || 'Failed to create request task';
+                    throw new Error(errorMessage);
                 }
 
                 const result = await response.json();

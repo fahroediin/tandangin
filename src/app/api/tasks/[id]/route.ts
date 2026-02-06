@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { logAuditAction } from '@/lib/auditService';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/tasks/[id] - Get task details
 export async function GET(
     req: NextRequest,

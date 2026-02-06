@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
         await writeFile(filePath, buffer);
 
         // 2. Create Task and Document transactionally
+        console.log('Creating task in DB for user:', session.user.id);
         const task = await prisma.task.create({
             data: {
                 name: taskName,
@@ -62,42 +63,46 @@ export async function POST(req: NextRequest) {
                 creator: true
             }
         });
+        console.log('Task created:', task.id);
 
         const documentId = task.documents[0].id;
 
-        // 3. Create Recipients and map temp IDs to real IDs
+        // 3. Create Recipients
         const recipientMap = new Map<string, string>(); // tempId -> dbId
 
         for (const r of recipients) {
+            console.log('Processing recipient:', r.email);
             // Validate recipient data
             if (!r.email || !r.name) continue;
 
             const signingToken = randomUUID();
 
-            const createdRecipient = await prisma.recipient.create({
-                data: {
-                    taskId: task.id,
-                    name: r.name,
-                    email: r.email,
-                    role: r.role || 'signer',
-                    order: r.order || 1,
-                    color: r.color || '#3b82f6',
-                    status: 'pending',
-                    signingToken: signingToken,
-                }
-            });
-
-            // Map the frontend temp ID to the database ID
-            if (r.id) {
-                recipientMap.set(r.id, createdRecipient.id);
-            }
-            // Fallback: map by email
-            recipientMap.set(r.email, createdRecipient.id);
-
-            // Send email invitation
+            console.log('Creating recipient record...');
             try {
-                // Should send if no order enforced OR it's the first in order (0 or 1)
+                const createdRecipient = await prisma.recipient.create({
+                    data: {
+                        taskId: task.id,
+                        name: r.name,
+                        email: r.email,
+                        role: r.role || 'signer',
+                        order: r.order || 1,
+                        color: r.color || '#3b82f6',
+                        status: 'pending',
+                        signingToken: signingToken,
+                    }
+                });
+                console.log('Recipient created:', createdRecipient.id);
+
+                // Map the frontend temp ID to the database ID
+                if (r.id) {
+                    recipientMap.set(r.id, createdRecipient.id);
+                }
+                // Fallback: map by email
+                recipientMap.set(r.email, createdRecipient.id);
+
+                // Send email invitation
                 const shouldSend = !setOrder || (r.order || 1) <= 1;
+                console.log('Should send email?', shouldSend);
 
                 if (shouldSend) {
                     const taskInfo = {
@@ -111,13 +116,16 @@ export async function POST(req: NextRequest) {
                         taskInfo,
                         signingToken
                     );
+                    console.log('Email sent to:', r.email);
                 }
-            } catch (emailError) {
-                console.error(`Failed to send email to ${r.email}`, emailError);
+            } catch (recipError) {
+                console.error('Error creating recipient or sending email:', recipError);
+                throw recipError; // Re-throw to trigger main catch and 500
             }
         }
 
         // 4. Create Fields
+        console.log('Creating fields...');
         if (fields && fields.length > 0) {
             await prisma.field.createMany({
                 data: fields.map((f: any) => {
@@ -132,8 +140,8 @@ export async function POST(req: NextRequest) {
                         documentId: documentId,
                         type: f.type,
                         page: f.page,
-                        x: f.x,
-                        y: f.y,
+                        positionX: f.x,
+                        positionY: f.y,
                         width: f.width,
                         height: f.height,
                         required: f.required,
@@ -143,6 +151,7 @@ export async function POST(req: NextRequest) {
                 })
             });
         }
+        console.log('Fields created. Success.');
 
         return NextResponse.json({
             success: true,
@@ -151,7 +160,9 @@ export async function POST(req: NextRequest) {
         });
 
     } catch (error) {
-        console.error('Error creating request task:', error);
-        return NextResponse.json({ error: 'Internal Server Error', details: (error as Error).message }, { status: 500 });
+        console.error('Error creating request task [MAIN CATCH]:', error);
+        // Explicitly extract message
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return NextResponse.json({ error: 'Internal Server Error', details: errorMessage }, { status: 500 });
     }
 }
